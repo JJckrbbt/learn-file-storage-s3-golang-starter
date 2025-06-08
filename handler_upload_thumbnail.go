@@ -7,6 +7,8 @@ import (
 	"github.com/bootdotdev/learn-file-storage-s3-golang-starter/internal/auth"
 	"github.com/google/uuid"
 	"io"
+	"log"
+	"os"
 )
 
 func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Request) {
@@ -43,30 +45,41 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	ext_map := map[string]string{
+		"image/apng": "apng",
+		"image/jpeg": "jpg",
+		"image/gif":  "gif",
+		"image/png":  "png",
+		"image/svg":  "svg",
+	}
 	content_type := fileheader.Header.Get("Content-Type")
 
-	imageData, err := io.ReadAll(file)
+	file_ext := ext_map[content_type]
+
+	uploadname := fmt.Sprintf("assets/%s.%s", videoID, file_ext)
+
+	upload, err := os.Create(uploadname)
 	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "File not created", err)
 		return
+	}
+
+	if _, err := io.Copy(upload, file); err != nil {
+		log.Fatal(err)
 	}
 
 	vdmeta, err := cfg.db.GetVideo(videoID)
 	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "Video Not Found", err)
 		return
 	}
+	url := fmt.Sprintf("http://localhost:%s/%s", cfg.port, uploadname)
 
-	newThumbnail := thumbnail{
-		data:      imageData,
-		mediaType: content_type,
-	}
-
-	videoThumbnails[videoID] = newThumbnail
-
-	Url := fmt.Sprintf("http://localhost:%s/api/thumbnails/%v", cfg.port, videoID)
-	vdmeta.ThumbnailURL = &Url
+	vdmeta.ThumbnailURL = &url
 
 	err = cfg.db.UpdateVideo(vdmeta)
 	if err != nil {
+		respondWithError(w, http.StatusNotModified, "Update incomplete", err)
 		return
 	}
 
