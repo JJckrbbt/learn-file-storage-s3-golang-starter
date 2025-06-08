@@ -31,7 +31,39 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 
 	fmt.Println("uploading thumbnail for video", videoID, "by user", userID)
 
-	// TODO: implement the upload here
+	const maxMemory int = 10 << 20
+
+	err = r.ParseMultipartForm(maxMemory)
+	if err != nil {
+		return
+	}
+
+	file, fileheader, err := r.FormFile("thumbnail")
+	if err != nil {
+		return
+	}
+
+	content_type := r.header["Content-Type"]
+
+	imageData, err := io.ReadAll(file)
+	if err != nil {
+		return
+	}
+
+	vdmeta, err := cfg.db.GetVideo(videoID)
+	if err != nil {
+		return
+	}
+
+	newThumbnail := thumbnail{
+		data:		imageData,
+		mediaType:	content_type,
+	}
+
+	videoThumbnails[videoID] = newThumbnail
+
 
 	respondWithJSON(w, http.StatusOK, struct{}{})
+
+
 }
