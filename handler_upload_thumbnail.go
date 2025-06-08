@@ -6,6 +6,7 @@ import (
 
 	"github.com/bootdotdev/learn-file-storage-s3-golang-starter/internal/auth"
 	"github.com/google/uuid"
+	"io"
 )
 
 func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Request) {
@@ -28,10 +29,9 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-
 	fmt.Println("uploading thumbnail for video", videoID, "by user", userID)
 
-	const maxMemory int = 10 << 20
+	const maxMemory int64 = 10 << 20
 
 	err = r.ParseMultipartForm(maxMemory)
 	if err != nil {
@@ -43,7 +43,7 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	content_type := r.header["Content-Type"]
+	content_type := fileheader.Header.Get("Content-Type")
 
 	imageData, err := io.ReadAll(file)
 	if err != nil {
@@ -56,14 +56,20 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 	}
 
 	newThumbnail := thumbnail{
-		data:		imageData,
-		mediaType:	content_type,
+		data:      imageData,
+		mediaType: content_type,
 	}
 
 	videoThumbnails[videoID] = newThumbnail
 
+	Url := fmt.Sprintf("http://localhost:%s/api/thumbnails/%v", cfg.port, videoID)
+	vdmeta.ThumbnailURL = &Url
 
-	respondWithJSON(w, http.StatusOK, struct{}{})
+	err = cfg.db.UpdateVideo(vdmeta)
+	if err != nil {
+		return
+	}
 
+	respondWithJSON(w, http.StatusOK, vdmeta)
 
 }
